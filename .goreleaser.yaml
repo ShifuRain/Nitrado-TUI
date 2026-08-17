@@ -70,9 +70,15 @@ winget:
     package_identifier: ShifuRain.nitui
     short_description: "CLI and TUI for controlling Nitrado game servers"
     license: MIT
-    license_url: "https://github.com/ShifuRain/Nitrado-TUI/blob/master/LICENSE"
+    # Plain github.com/.../blob/... and /issues URLs 404 for winget-pkgs'
+    # validator bot (confirmed independently: GitHub blocks automated/
+    # datacenter clients on these app-rendered routes, while the repo root
+    # and raw-content CDN work fine) — hence raw.githubusercontent.com for
+    # the license, and the repo root (which still surfaces an Issues tab)
+    # instead of /issues for support.
+    license_url: "https://raw.githubusercontent.com/ShifuRain/Nitrado-TUI/master/LICENSE"
     publisher_url: "https://github.com/ShifuRain"
-    publisher_support_url: "https://github.com/ShifuRain/Nitrado-TUI/issues"
+    publisher_support_url: "https://github.com/ShifuRain/Nitrado-TUI"
     homepage: "https://github.com/ShifuRain/Nitrado-TUI"
     copyright: "Nicklas Hoppe"
     author: "Nicklas Hoppe"
