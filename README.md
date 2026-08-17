@@ -51,7 +51,7 @@ git tag v1.0.1
 git push origin v1.0.1
 ```
 
-That builds every OS/arch combination listed above, archives them, generates checksums, and publishes a GitHub Release with an auto-generated changelog. `.github/workflows/ci.yml` runs `gofmt`/`go vet`/`staticcheck`/`go test` (the latter across Linux, Windows, and macOS runners) on every push and pull request.
+That builds every OS/arch combination listed above, archives them, generates checksums, and publishes a GitHub Release with an auto-generated changelog. `.github/workflows/ci.yml` runs `gofmt`/`go vet`/`staticcheck`/`go test` (the latter across Linux, Windows, and macOS runners) plus [`govulncheck`](https://go.dev/blog/govulncheck) — the official Go vulnerability scanner, which checks dependencies against the Go vulnerability database and only flags ones your code actually calls — on every push and pull request.
 
 To sanity-check the release config locally without publishing anything:
 
