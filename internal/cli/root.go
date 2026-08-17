@@ -33,19 +33,29 @@ func newAuthStore() auth.Store {
 	return auth.NewKeychainStore()
 }
 
-func Execute() {
-	root := newRootCmd()
+// BuildInfo carries version metadata injected at build time via -ldflags
+// (see .goreleaser.yaml); main.go's defaults ("dev"/"none"/"unknown") apply
+// to plain `go build` runs.
+type BuildInfo struct {
+	Version string
+	Commit  string
+	Date    string
+}
+
+func Execute(info BuildInfo) {
+	root := newRootCmd(info)
 	if err := root.Execute(); err != nil {
 		fmt.Fprintln(os.Stderr, "Error:", err)
 		os.Exit(1)
 	}
 }
 
-func newRootCmd() *cobra.Command {
+func newRootCmd(info BuildInfo) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:           "nitui",
 		Short:         "Control your Nitrado game servers from the terminal",
 		Long:          "nitui is a CLI and TUI for managing Nitrado game servers: authenticate, list servers, switch installed games, and control server lifecycle — interactively or scripted.",
+		Version:       fmt.Sprintf("%s (commit %s, built %s)", info.Version, info.Commit, info.Date),
 		SilenceUsage:  true,
 		SilenceErrors: true,
 		RunE: func(cmd *cobra.Command, args []string) error {

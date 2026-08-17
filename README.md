@@ -1,5 +1,8 @@
 # nitui
 
+[![ci](https://github.com/ShifuRain/Nitrado-TUI/actions/workflows/ci.yml/badge.svg)](https://github.com/ShifuRain/Nitrado-TUI/actions/workflows/ci.yml)
+[![release](https://github.com/ShifuRain/Nitrado-TUI/actions/workflows/release.yml/badge.svg)](https://github.com/ShifuRain/Nitrado-TUI/actions/workflows/release.yml)
+
 A cross-platform CLI + TUI for controlling [Nitrado](https://www.nitrado.net/) game servers. Every action works as a scriptable one-shot command, and running `nitui` with no arguments launches an interactive terminal UI, styled from a YAML config file.
 
 > **Note:** This project's code was written by an AI coding assistant (Claude), working with a human directing the design, verifying behavior against a real Nitrado account, and reviewing changes.
@@ -7,6 +10,16 @@ A cross-platform CLI + TUI for controlling [Nitrado](https://www.nitrado.net/) g
 ## Status
 
 Early scaffolding. The command surface below works end-to-end against the real Nitrado API — base URL, auth header, error envelope, and the `Service`/`GameServer`/`Game` field mappings in `internal/api/types.go` have all been confirmed against a live account's actual responses. A couple of things are still unverified — see [Known gaps](#known-gaps).
+
+## Installing a release
+
+Prebuilt binaries are published on the [Releases page](https://github.com/ShifuRain/Nitrado-TUI/releases) for:
+
+- **Linux**: amd64, arm64, armv6, armv7
+- **Windows**: amd64, arm64
+- **macOS**: amd64 (Intel), arm64 (Apple Silicon)
+
+Download the archive for your OS/architecture, extract it, and run the `nitui` binary (`nitui.exe` on Windows). Verify a download against `checksums.txt` in the same release if you want to confirm integrity.
 
 ## Getting started (devcontainer)
 
@@ -27,6 +40,24 @@ Run tests:
 
 ```sh
 go test ./...              # add -cover for a coverage summary
+```
+
+## Releasing
+
+Releases are built by [GoReleaser](https://goreleaser.com/) (config: `.goreleaser.yaml`) via `.github/workflows/release.yml`, triggered by pushing a tag matching `v*` (e.g. `v1.0.0`):
+
+```sh
+git tag v1.0.1
+git push origin v1.0.1
+```
+
+That builds every OS/arch combination listed above, archives them, generates checksums, and publishes a GitHub Release with an auto-generated changelog. `.github/workflows/ci.yml` runs `gofmt`/`go vet`/`staticcheck`/`go test` (the latter across Linux, Windows, and macOS runners) on every push and pull request.
+
+To sanity-check the release config locally without publishing anything:
+
+```sh
+goreleaser check
+goreleaser release --snapshot --clean --skip=publish
 ```
 
 Tests cover the HTTP client and endpoint construction (`internal/api`, against `httptest` servers — no real network calls), the token stores (`internal/auth`), config/state persistence (`internal/config`, `internal/state`), CLI command wiring including error paths like the games-limit message (`internal/cli`), and the TUI's state machine (`internal/tui`). Rendering (`view.go`, `styles.go`) isn't covered — it's lower-value to test and changes often.

@@ -34,7 +34,7 @@ func withTestEnv(t *testing.T, srv *httptest.Server) *auth.MemoryStore {
 func runCLI(t *testing.T, args ...string) (string, error) {
 	t.Helper()
 	var out bytes.Buffer
-	cmd := newRootCmd()
+	cmd := newRootCmd(BuildInfo{Version: "test"})
 	cmd.SetOut(&out)
 	cmd.SetErr(&out)
 	cmd.SetArgs(args)
