@@ -51,8 +51,10 @@ jobs:
   govulncheck:
     runs-on: ubuntu-latest
     steps:
+      # go-version-input defaults to "stable" and (per the action's own
+      # implementation) always wins over go-version-file, so it's omitted
+      # here rather than passed and silently ignored.
       - name: Run govulncheck
         uses: golang/govulncheck-action@v1
         with:
-          go-version-file: go.mod
           go-package: ./...
