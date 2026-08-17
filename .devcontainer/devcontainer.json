@@ -1,0 +1,29 @@
+{
+  "name": "nitui-dev",
+  "build": {
+    "dockerfile": "Dockerfile"
+  },
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "golang.go",
+        "redhat.vscode-yaml",
+        "eamodio.gitlens"
+      ],
+      "settings": {
+        "go.toolsManagement.autoUpdate": false,
+        "go.useLanguageServer": true,
+        "editor.formatOnSave": true
+      }
+    }
+  },
+  "postCreateCommand": "go mod download",
+  "remoteEnv": {
+    "CGO_ENABLED": "0",
+    // No D-Bus Secret Service in this container, so the real OS keychain
+    // backend can't work here. This makes `nitui auth login` etc. usable
+    // for manual testing inside the devcontainer only — the released
+    // binary always defaults to the OS keychain. See internal/auth/file_store.go.
+    "NITUI_TOKEN_STORE": "file"
+  }
+}
