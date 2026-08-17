@@ -61,3 +61,63 @@ changelog:
 
 release:
   prerelease: auto
+
+winget:
+  - name: nitui
+    ids:
+      - default
+    publisher: ShifuRain
+    package_identifier: ShifuRain.nitui
+    short_description: "CLI and TUI for controlling Nitrado game servers"
+    license: MIT
+    license_url: "https://github.com/ShifuRain/Nitrado-TUI/blob/master/LICENSE"
+    publisher_url: "https://github.com/ShifuRain"
+    publisher_support_url: "https://github.com/ShifuRain/Nitrado-TUI/issues"
+    homepage: "https://github.com/ShifuRain/Nitrado-TUI"
+    copyright: "Nicklas Hoppe"
+    author: "Nicklas Hoppe"
+    tags:
+      - cli
+      - tui
+      - nitrado
+      - gameserver
+    release_notes: "{{ .Changelog }}"
+    # Renders "true" (skip) until WINGET_GITHUB_TOKEN is actually set as a
+    # repo secret, so this pipe is a no-op rather than a hard failure for
+    # anyone building/releasing before that setup is done.
+    skip_upload: '{{ not (isEnvSet "WINGET_GITHUB_TOKEN") }}'
+    repository:
+      owner: ShifuRain
+      name: winget-pkgs
+      branch: "nitui-{{ .Version }}"
+      token: '{{ envOrDefault "WINGET_GITHUB_TOKEN" "" }}'
+      pull_request:
+        enabled: true
+        base:
+          owner: microsoft
+          name: winget-pkgs
+          branch: master
+
+aurs:
+  - name: nitui-bin
+    ids:
+      - default
+    homepage: "https://github.com/ShifuRain/Nitrado-TUI"
+    description: "CLI and TUI for controlling Nitrado game servers"
+    maintainers:
+      - "Nicklas Hoppe <nicklas@hoppe.cloud>"
+    license: "MIT"
+    private_key: '{{ envOrDefault "AUR_KEY" "" }}'
+    git_url: "ssh://aur@aur.archlinux.org/nitui-bin.git"
+    provides:
+      - nitui
+    conflicts:
+      - nitui
+    # Same no-op-until-configured guard as winget above.
+    skip_upload: '{{ not (isEnvSet "AUR_KEY") }}'
+    package: |-
+      install -Dm755 "./nitui" "${pkgdir}/usr/bin/nitui"
+      install -Dm644 "./LICENSE" "${pkgdir}/usr/share/licenses/${pkgname}/LICENSE"
+    commit_author:
+      name: goreleaserbot
+      email: nicklas@hoppe.cloud

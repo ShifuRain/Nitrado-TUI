@@ -33,3 +33,8 @@ jobs:
           args: release --clean
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # Both optional: unset until the winget-pkgs fork / AUR account
+          # setup is done, at which point .goreleaser.yaml's skip_upload
+          # guards flip on automatically. See README's "Releasing" section.
+          WINGET_GITHUB_TOKEN: ${{ secrets.WINGET_GITHUB_TOKEN }}
+          AUR_KEY: ${{ secrets.AUR_KEY }}
