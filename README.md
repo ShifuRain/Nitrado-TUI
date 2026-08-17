@@ -21,7 +21,7 @@ Prebuilt binaries are published on the [Releases page](https://github.com/ShifuR
 
 Download the archive for your OS/architecture, extract it, and run the `nitui` binary (`nitui.exe` on Windows). Verify a download against `checksums.txt` in the same release if you want to confirm integrity.
 
-**Package managers** (winget, AUR) are wired up in the release pipeline but not live yet — pending one-time maintainer setup, see [Package manager setup](#package-manager-setup) below. Once live: `winget install ShifuRain.nitui` on Windows, or `yay -S nitui-bin` (or any AUR helper) on Arch.
+**Package managers** (winget, AUR) are wired up in the release pipeline but not live yet, pending one-time maintainer setup. Once live: `winget install ShifuRain.nitui` on Windows, or `yay -S nitui-bin` (or any AUR helper) on Arch.
 
 ## Getting started (devcontainer)
 
@@ -44,6 +44,10 @@ Run tests:
 go test ./...              # add -cover for a coverage summary
 ```
 
+Tests cover the HTTP client and endpoint construction (`internal/api`, against `httptest` servers — no real network calls), the token stores (`internal/auth`), config/state persistence (`internal/config`, `internal/state`), CLI command wiring including error paths like the games-limit message (`internal/cli`), and the TUI's state machine (`internal/tui`). Rendering (`view.go`, `styles.go`) isn't covered — it's lower-value to test and changes often.
+
+Two testing-only seams worth knowing about if you add commands: `NITUI_CONFIG_DIR` overrides where config/state live (tests point it at a temp dir instead of touching your real profile), and `api.WithBaseURL` / the package-level `apiBaseURL` var in `internal/cli` and `internal/tui` let tests point the API client at an `httptest.Server` instead of the real `api.nitrado.net`.
+
 ## Releasing
 
 Releases are built by [GoReleaser](https://goreleaser.com/) (config: `.goreleaser.yaml`) via `.github/workflows/release.yml`, triggered by pushing a tag matching `v*` (e.g. `v1.0.0`):
@@ -61,38 +65,6 @@ To sanity-check the release config locally without publishing anything:
 goreleaser check
 goreleaser release --snapshot --clean --skip=publish
 ```
-
-## Package manager setup
-
-`.goreleaser.yaml` already has `winget` and `aurs` (AUR) publishers configured. Both are guarded by `skip_upload` templates keyed on whether their secret is set, so they're harmless no-ops until the one-time setup below is done — no risk to the regular GitHub Release.
-
-### winget
-
-1. Fork [microsoft/winget-pkgs](https://github.com/microsoft/winget-pkgs) into the `ShifuRain` account (just the GitHub "Fork" button).
-2. Create a classic [Personal Access Token](https://github.com/settings/tokens/new) with the `public_repo` scope.
-3. Add it as a repo secret — from your own machine, not by pasting the token anywhere else:
-   ```sh
-   gh secret set WINGET_GITHUB_TOKEN --repo ShifuRain/Nitrado-TUI
-   ```
-4. Next tag push, GoReleaser opens a PR from the fork to `microsoft/winget-pkgs`. First-time submissions typically get automated validation plus a manual review from a winget-pkgs moderator, which can take a few days; later version bumps are usually auto-merged.
-
-### AUR
-
-1. Register an account at [aur.archlinux.org](https://aur.archlinux.org/register) if you don't have one.
-2. Generate a dedicated SSH keypair with **no passphrase** (AUR pushes are unattended in CI):
-   ```sh
-   ssh-keygen -t ed25519 -f ~/.ssh/aur_nitui -N ""
-   ```
-3. Add the public key (`~/.ssh/aur_nitui.pub`) to your AUR account under Account Settings → SSH Public Key.
-4. Add the private key as a repo secret directly from the file, so its contents never appear in a terminal history or chat:
-   ```sh
-   gh secret set AUR_KEY --repo ShifuRain/Nitrado-TUI < ~/.ssh/aur_nitui
-   ```
-5. Next tag push, GoReleaser pushes an updated `PKGBUILD` to `ssh://aur@aur.archlinux.org/nitui-bin.git` — AUR creates the package automatically on first push, no separate manual registration needed. Package covers `x86_64`, `aarch64`, and `armv7h` (matching what current Arch Linux ARM itself supports — `armv6h` was dropped upstream, though the raw armv6 binary is still on the GitHub release for anyone building their own package).
-
-Tests cover the HTTP client and endpoint construction (`internal/api`, against `httptest` servers — no real network calls), the token stores (`internal/auth`), config/state persistence (`internal/config`, `internal/state`), CLI command wiring including error paths like the games-limit message (`internal/cli`), and the TUI's state machine (`internal/tui`). Rendering (`view.go`, `styles.go`) isn't covered — it's lower-value to test and changes often.
-
-Two testing-only seams worth knowing about if you add commands: `NITUI_CONFIG_DIR` overrides where config/state live (tests point it at a temp dir instead of touching your real profile), and `api.WithBaseURL` / the package-level `apiBaseURL` var in `internal/cli` and `internal/tui` let tests point the API client at an `httptest.Server` instead of the real `api.nitrado.net`.
 
 ## Commands
 
