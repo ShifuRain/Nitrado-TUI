@@ -90,7 +90,11 @@ winget:
       owner: ShifuRain
       name: winget-pkgs
       branch: "nitui-{{ .Version }}"
-      token: '{{ envOrDefault "WINGET_GITHUB_TOKEN" "" }}'
+      # Plain .Env access is safe here: release.yml always declares this key
+      # in its env block (as an empty string when the secret is unset), so
+      # the map lookup itself never fails — only isEnvSet above needs to be
+      # used for the skip decision.
+      token: "{{ .Env.WINGET_GITHUB_TOKEN }}"
       pull_request:
         enabled: true
         base:
@@ -107,7 +111,7 @@ aurs:
     maintainers:
       - "Nicklas Hoppe <nicklas@hoppe.cloud>"
     license: "MIT"
-    private_key: '{{ envOrDefault "AUR_KEY" "" }}'
+    private_key: "{{ .Env.AUR_KEY }}"
     git_url: "ssh://aur@aur.archlinux.org/nitui-bin.git"
     provides:
       - nitui
