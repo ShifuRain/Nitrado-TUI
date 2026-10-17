@@ -4,16 +4,21 @@
 package cli
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"os"
+	"os/signal"
+	"time"
 
 	"github.com/spf13/cobra"
+	"golang.org/x/term"
 
 	"nitui/internal/api"
 	"nitui/internal/auth"
 	"nitui/internal/config"
 	"nitui/internal/tui"
+	"nitui/internal/update"
 )
 
 // authStore defaults to the OS keychain. Setting NITUI_TOKEN_STORE=file
@@ -44,9 +49,69 @@ type BuildInfo struct {
 
 func Execute(info BuildInfo) {
 	root := newRootCmd(info)
-	if err := root.Execute(); err != nil {
+
+	// Ctrl-C cancels in-flight work (--wait, --watch) cleanly.
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt)
+	defer stop()
+
+	notice := startUpdateCheck(ctx, info.Version, os.Args[1:])
+	if err := root.ExecuteContext(ctx); err != nil {
 		fmt.Fprintln(os.Stderr, "Error:", err)
+		stop()
 		os.Exit(1)
+	}
+	printUpdateNotice(notice)
+}
+
+// startUpdateCheck begins the (cached, time-boxed) new-version lookup in the
+// background and returns a channel that yields at most one release. Nothing
+// here may ever fail or delay a command: errors are dropped, and the caller
+// only waits a moment for the result after the command has finished.
+func startUpdateCheck(ctx context.Context, version string, args []string) <-chan *update.Release {
+	ch := make(chan *update.Release, 1)
+	if !wantsUpdateNotice(args) {
+		close(ch)
+		return ch
+	}
+	cfg, err := config.Load()
+	if err != nil || update.Disabled(cfg) {
+		close(ch)
+		return ch
+	}
+	go func() {
+		defer close(ch)
+		cctx, cancel := context.WithTimeout(ctx, 3*time.Second)
+		defer cancel()
+		if r, err := update.Check(cctx, version, update.Options{}); err == nil && r != nil {
+			ch <- r
+		}
+	}()
+	return ch
+}
+
+// wantsUpdateNotice is false for non-interactive uses where an extra line
+// would be noise or break parsing: JSON output, piped stderr, completion,
+// version/help, and the no-argument TUI (which shows its own banner).
+func wantsUpdateNotice(args []string) bool {
+	if len(args) == 0 || !term.IsTerminal(int(os.Stderr.Fd())) {
+		return false
+	}
+	for _, a := range args {
+		switch a {
+		case "--json", "--version", "--help", "-h", "completion", "help", "__complete", "--watch":
+			return false
+		}
+	}
+	return true
+}
+
+func printUpdateNotice(ch <-chan *update.Release) {
+	select {
+	case r, ok := <-ch:
+		if ok && r != nil {
+			fmt.Fprintln(os.Stderr, "\n"+update.Notice(r))
+		}
+	case <-time.After(300 * time.Millisecond):
 	}
 }
 
@@ -63,11 +128,17 @@ func newRootCmd(info BuildInfo) *cobra.Command {
 			if err != nil {
 				return fmt.Errorf("loading config: %w", err)
 			}
-			return tui.Run(cfg, authStore)
+			return tui.Run(cfg, authStore, info.Version)
 		},
 	}
 
+	addGlobalFlags(cmd)
 	cmd.AddCommand(newAuthCmd())
+	cmd.AddCommand(newSettingsCmd())
+	cmd.AddCommand(newBackupsCmd())
+	cmd.AddCommand(newFilesCmd())
+	cmd.AddCommand(newCommandCmd())
+	cmd.AddCommand(newLogsCmd())
 	cmd.AddCommand(newSelectCmd())
 	cmd.AddCommand(newSwitchCmd())
 	cmd.AddCommand(newServersCmd())

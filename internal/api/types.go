@@ -1,6 +1,9 @@
 package api
 
-import "fmt"
+import (
+	"encoding/json"
+	"fmt"
+)
 
 // Service is a Nitrado "service" — the billing/ownership unit that a
 // gameserver (among other product types) lives under.
@@ -38,6 +41,36 @@ type GameServer struct {
 	GameHuman string `json:"game_human"`
 	Slots     int    `json:"slots"`
 	Location  string `json:"location"` // country code, e.g. "DE"
+	Username  string `json:"username"` // FTP/file-server user
+	Label     string `json:"label"`
+
+	// Settings is the per-game configuration, category -> key -> value.
+	// Decoding is tolerant: an unexpected shape yields nil, never an error.
+	Settings Settings `json:"settings"`
+	// GameSpecific carries the last game-update status, when Nitrado reports one.
+	GameSpecific GameSpecific `json:"game_specific"`
+}
+
+// UpdateStatus is the last game-update status Nitrado reported, or "".
+func (g GameServer) UpdateStatus() string { return g.GameSpecific.UpdateStatus }
+
+// GameSpecific holds the game-specific block of a gameserver response.
+type GameSpecific struct {
+	UpdateStatus string `json:"update_status"`
+}
+
+// UnmarshalJSON tolerates a missing or differently-shaped block.
+func (g *GameSpecific) UnmarshalJSON(b []byte) error {
+	var raw struct {
+		UpdateStatus any `json:"update_status"`
+	}
+	if json.Unmarshal(b, &raw) != nil {
+		return nil
+	}
+	if s, ok := raw.UpdateStatus.(string); ok {
+		g.UpdateStatus = s
+	}
+	return nil
 }
 
 // Address is the connect address as "host:port".

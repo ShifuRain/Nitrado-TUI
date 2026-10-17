@@ -1,7 +1,6 @@
 package cli
 
 import (
-	"context"
 	"fmt"
 	"text/tabwriter"
 	"time"
@@ -18,6 +17,8 @@ func newGamesCmd() *cobra.Command {
 	}
 	cmd.AddCommand(newGamesListCmd(false))
 	cmd.AddCommand(newGamesListCmd(true))
+	cmd.AddCommand(newGamesStartCmd())
+	cmd.AddCommand(newGamesUninstallCmd())
 	return cmd
 }
 
@@ -31,15 +32,11 @@ func newGamesListCmd(installedOnly bool) *cobra.Command {
 		Use:   use,
 		Short: short,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			id, err := selectedServerID()
+			client, id, err := prepare(cmd)
 			if err != nil {
 				return err
 			}
-			client, err := requireClient()
-			if err != nil {
-				return err
-			}
-			ctx, cancel := context.WithTimeout(cmd.Context(), 15*time.Second)
+			ctx, cancel := timeoutCtx(cmd, 15*time.Second)
 			defer cancel()
 			games, err := client.ListGames(ctx, id)
 			if err != nil {
@@ -54,6 +51,9 @@ func newGamesListCmd(installedOnly bool) *cobra.Command {
 					}
 				}
 				games = filtered
+			}
+			if wantJSON(cmd) {
+				return printJSON(cmd, games)
 			}
 			if len(games) == 0 {
 				fmt.Fprintln(cmd.OutOrStdout(), "No games found.")
@@ -87,4 +87,51 @@ func fitsSlots(g api.Game) string {
 	default:
 		return "yes"
 	}
+}
+
+func newGamesStartCmd() *cobra.Command {
+	return &cobra.Command{
+		Use:   "start <game_id>",
+		Short: "Make an already-installed game the active one",
+		Args:  cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			client, id, err := prepare(cmd)
+			if err != nil {
+				return err
+			}
+			ctx, cancel := timeoutCtx(cmd, 30*time.Second)
+			defer cancel()
+			if err := client.StartGame(ctx, id, args[0]); err != nil {
+				return apiErr(err)
+			}
+			fmt.Fprintf(cmd.OutOrStdout(), "Starting game %q on server %d.\n", args[0], id)
+			return nil
+		},
+	}
+}
+
+func newGamesUninstallCmd() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "uninstall <game_id>",
+		Short: "Uninstall a game from the server (frees a game slot)",
+		Args:  cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			client, id, err := prepare(cmd)
+			if err != nil {
+				return err
+			}
+			if err := confirm(cmd, fmt.Sprintf("Uninstall %q from server %d? Its files on the server may be lost.", args[0], id)); err != nil {
+				return err
+			}
+			ctx, cancel := timeoutCtx(cmd, 30*time.Second)
+			defer cancel()
+			if err := client.UninstallGame(ctx, id, args[0]); err != nil {
+				return apiErr(err)
+			}
+			fmt.Fprintf(cmd.OutOrStdout(), "Uninstalled game %q from server %d.\n", args[0], id)
+			return nil
+		},
+	}
+	addYesFlag(cmd)
+	return cmd
 }
