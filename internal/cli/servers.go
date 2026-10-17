@@ -33,6 +33,9 @@ func newServersListCmd() *cobra.Command {
 			if err != nil {
 				return apiErr(err)
 			}
+			if wantJSON(cmd) {
+				return printJSON(cmd, services)
+			}
 			if len(services) == 0 {
 				fmt.Fprintln(cmd.OutOrStdout(), "No servers on this account.")
 				return nil

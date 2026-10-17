@@ -9,7 +9,12 @@ import (
 // serviceItem adapts api.Service to bubbles/list.Item.
 type serviceItem struct{ api.Service }
 
-func (s serviceItem) Title() string { return fmt.Sprintf("Server %d — %s", s.ID, s.Details.Game) }
+func (s serviceItem) Title() string {
+	if s.Details.Name != "" {
+		return fmt.Sprintf("%s (%d) — %s", s.Details.Name, s.ID, s.Details.Game)
+	}
+	return fmt.Sprintf("Server %d — %s", s.ID, s.Details.Game)
+}
 func (s serviceItem) Description() string {
 	return fmt.Sprintf("%s — %s", s.Status, s.Details.Address)
 }

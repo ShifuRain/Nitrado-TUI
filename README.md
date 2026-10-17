@@ -9,7 +9,7 @@ A cross-platform CLI + TUI for controlling [Nitrado](https://www.nitrado.net/) g
 
 ## Status
 
-Early scaffolding. The command surface below works end-to-end against the real Nitrado API — base URL, auth header, error envelope, and the `Service`/`GameServer`/`Game` field mappings in `internal/api/types.go` have all been confirmed against a live account's actual responses. A couple of things are still unverified — see [Known gaps](#known-gaps).
+Early. The original command surface (servers, select, switch, server status/stop/restart, games) works end-to-end against the real Nitrado API — base URL, auth header, error envelope, and the `Service`/`GameServer`/`Game` field mappings in `internal/api/types.go` have all been confirmed against a live account's actual responses. A couple of things are still unverified — see [Known gaps](#known-gaps).
 
 ## Installing a release
 
@@ -75,17 +75,55 @@ nitui auth logoff                remove the saved token (alias: logout)
 nitui auth status                show whether you're logged in
 nitui servers list               list every server on your account
 nitui select <server_id>         choose the server follow-up commands act on
-nitui switch <game_id>           install/switch the active game on the selected server
-nitui server status              show the selected server's status
-nitui server stop                stop the selected server
-nitui server restart             restart the selected server (also starts it if stopped)
-nitui games list                 list every game available on the selected server
-nitui games installed            list games currently installed on the selected server
+nitui switch <game_id>           switch the active game (starts it if installed, installs it otherwise)
+
+nitui server status [--watch]    show the selected server's status (--watch follows changes live)
+nitui server stop|restart        [--wait] [--message "..."] [--timeout 5m] [--yes]
+nitui server update              restart so Nitrado applies a pending game update (see Known gaps)
+nitui server stats [--hours N]   recent resource-usage statistics (raw JSON)
+
+nitui settings list [category]   list game settings; * marks values changed from the default
+nitui settings get <cat> <key>   print one setting
+nitui settings set <cat> <key> <value>
+nitui settings reset [--yes]     reset ALL settings to their defaults
+
+nitui games list|installed       list games available / installed on the selected server
+nitui games start <game_id>      make an installed game the active one
+nitui games uninstall <game_id>  uninstall a game (frees a game slot)
+
+nitui backups list|create        list / create backups
+nitui backups restore|delete <name> [--yes]
+
+nitui files ls [dir]             browse the server's files (same files as FTP)
+nitui files cat <path>           print a remote file
+nitui files get <remote> [local] download a file
+nitui files put <local> <remote> upload a file (overwrites)
+nitui files mkdir|rm <path>      create a directory / delete a file or directory
+
+nitui command <console command>  send a command to the running game server
+nitui logs                       show the admin log
+
 nitui config path                print the config file location
 nitui config init                write a commented example config file
 ```
 
 `<game_id>` everywhere above means the short slug shown in `nitui games list` (e.g. `valheim`, `enshrouded`), not the numeric catalog id.
+
+**Global flags:** `--server <id>` acts on a specific server for one command instead of the one saved by `nitui select`, and `--json` prints machine-readable output for `servers list`, `server status`, `games list|installed`, `settings list`, `backups list`, `files ls`, and `logs`.
+
+**Confirmations:** destructive commands (`settings reset`, `backups restore|delete`, `files rm`, `games uninstall`) ask before acting and require `--yes` when there's no terminal. `server stop|restart` only prompt when run interactively, so existing scripts and cron jobs keep working.
+
+### Live status
+
+After you restart or stop a server (in the TUI, or with `--wait` on the command line), nitui polls Nitrado until the server has *actually* reached the new state — for a restart it first waits to see the server leave `started` so a stale "started" doesn't count as done. The TUI detail screen also refreshes itself every few seconds.
+
+### The TUI
+
+Open a server, then: `r` restart, `x` stop (both offer an optional message to players), `u` update, `s` games (`enter` switch/start, `u` uninstall), `e` settings (category → key → edit, with a restart offer after saving), `b` backups, `f` files (browse, preview, edit with `ctrl+s`, delete), `c` console (`ctrl+l` loads the admin log).
+
+### Update notifications
+
+nitui checks GitHub for a newer release at most once a day (cached next to your config, 3-second timeout, silent on any failure) and mentions it in the TUI and after interactive CLI commands. Turn it off with `update_check: false` in `config.yaml` or `NITUI_NO_UPDATE_CHECK=1`. Development builds never check.
 
 ### Authentication
 
@@ -108,6 +146,8 @@ theme:
     warning: "#FBBF24"
     error: "#F87171"
     background: ""       # leave empty to use the terminal's own background
+
+update_check: true       # set to false to disable the new-version notice
 ```
 
 ## Known gaps
@@ -115,5 +155,7 @@ theme:
 These are called out in code comments where relevant too:
 
 - **Games-per-server limit error text is unverified.** Nitrado's product pages document a 5-games-per-server cap, and the live `games` list confirms per-game `installed`/`enough_slots`/`too_many_slots` flags, but the exact error message/status code returned when you actually hit the 5-game cap hasn't been observed yet. `Error.FriendlyMessage()` currently uses a substring heuristic (any error message containing "limit") to append guidance — this should be tightened once we've triggered the real error.
-- **`switch <game_id>` semantics are partially unverified.** It calls the `games/install` endpoint with the game's slug (confirmed correct identifier — see `internal/api/types.go`). What's not yet confirmed live is whether `install` is also correct for switching to a game that's already installed-but-inactive, or whether that case needs `games/start` instead.
+- **`switch <game_id>` semantics are partially unverified.** An installed game is started with `games/start`, anything else is installed with `games/install` (the slug is the confirmed identifier — see `internal/api/types.go`). Neither call has been confirmed live for the installed-but-inactive case.
 - **No generic "start the whole server" endpoint was found** in Nitrado's SDKs, only `stop` and `restart` — so there's no `nitui server start` command. `restart` starts a stopped server too.
+- **Game-file updates have no dedicated API.** Nitrado updates games automatically, and the SDK has no "update now" call. `server update` (TUI: `u`) just restarts the server, on the assumption that it applies a pending update on start; that's unconfirmed. `server status` shows the `update_status` Nitrado reports, when there is one.
+- **Several response shapes were written from the official Nitrapi-PHP SDK and are not yet confirmed against a live account.** Parsing is deliberately tolerant (a surprise degrades to "nothing shown", never a crash), but check these with `nitui debug api` before relying on them: settings values (always sent as strings; booleans/numbers unverified), `backups` list/restore, `admin_logs`, `stats`, and the file-server calls (`list`, `download`/`upload` token handoff, `delete`).

@@ -12,6 +12,9 @@ const fileName = "config.yaml"
 // platform equivalent).
 type Config struct {
 	Theme Theme `yaml:"theme"`
+	// UpdateCheck controls the "new version available" notice; nil means
+	// the default (enabled).
+	UpdateCheck *bool `yaml:"update_check"`
 }
 
 // Load reads the user's config file, if present, and merges it over the
@@ -38,6 +41,7 @@ func Load() (Config, error) {
 	}
 
 	cfg.Theme = user.Theme.merge(DefaultTheme())
+	cfg.UpdateCheck = user.UpdateCheck
 	return cfg, nil
 }
 
@@ -66,6 +70,10 @@ func WriteDefault() (string, error) {
 const exampleConfig = `# nitui config file
 # Every field below is optional; omit anything you want left at its default.
 # Colors accept a hex string ("#7D56F4") or an ANSI 256 color index ("212").
+
+# Check GitHub (at most once a day) for a newer nitui release and mention it.
+# Also disabled by setting NITUI_NO_UPDATE_CHECK=1.
+update_check: true
 
 theme:
   # rounded | normal | thick | double | hidden

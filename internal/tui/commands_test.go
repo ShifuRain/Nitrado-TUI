@@ -3,6 +3,7 @@ package tui
 import (
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"nitui/internal/api"
@@ -121,5 +122,69 @@ func TestDoSwitchGame_LimitErrorSurfaced(t *testing.T) {
 	res := msg.(actionDoneMsg)
 	if res.err == nil {
 		t.Fatal("expected an error when the games limit is hit")
+	}
+}
+
+func TestPollStatus_CarriesGenAndDetail(t *testing.T) {
+	client := testClient(t, 200, `{"data":{"gameserver":{"status":"restarting"}}}`)
+	res := pollStatus(client, 3, 9)().(statusPolledMsg)
+	if res.err != nil || res.gen != 9 || res.detail.Status != "restarting" || res.detail.ServiceID != 3 {
+		t.Errorf("res = %+v", res)
+	}
+}
+
+func TestDoStopAndRestart_ReturnLifecycleMsgWithMessage(t *testing.T) {
+	var body string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		b := make([]byte, 200)
+		n, _ := r.Body.Read(b)
+		body = string(b[:n])
+		_, _ = w.Write([]byte(`{"status":"success"}`))
+	}))
+	t.Cleanup(srv.Close)
+	client := api.New("t", api.WithBaseURL(srv.URL))
+
+	res := doRestart(client, 1, "brb")().(lifecycleDoneMsg)
+	if res.err != nil || res.verb != "restart" || !strings.Contains(body, "brb") {
+		t.Errorf("res=%+v body=%q", res, body)
+	}
+	res = doStop(client, 1, "")().(lifecycleDoneMsg)
+	if res.err != nil || res.verb != "stop" {
+		t.Errorf("res=%+v", res)
+	}
+}
+
+func TestCheckForUpdate_ReturnsMsgOnlyWhenNewer(t *testing.T) {
+	t.Setenv("NITUI_CONFIG_DIR", t.TempDir())
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_, _ = w.Write([]byte(`{"tag_name":"v2.0.0","html_url":"https://example.test"}`))
+	}))
+	t.Cleanup(srv.Close)
+	prev := updateURL
+	updateURL = srv.URL
+	t.Cleanup(func() { updateURL = prev })
+
+	if msg, ok := checkForUpdate("1.0.0")().(updateAvailableMsg); !ok || msg.release.Version != "2.0.0" {
+		t.Errorf("want updateAvailableMsg for 2.0.0, got %v", msg)
+	}
+	if msg := checkForUpdate("2.0.0")(); msg != nil {
+		t.Errorf("up to date should yield nil, got %v", msg)
+	}
+	if msg := checkForUpdate("dev")(); msg != nil {
+		t.Errorf("dev build should yield nil, got %v", msg)
+	}
+}
+
+func TestSettingsAndBackupCommands(t *testing.T) {
+	client := testClient(t, 200, `{"data":{"gameserver":{"status":"started","settings":{"a":{"b":"c"}}},"settings":{"a":{"b":"d"}},"backups":[{"name":"x"}]}}`)
+	sl := loadSettings(client, 1)().(settingsLoadedMsg)
+	if sl.err != nil || sl.detail.Settings["a"]["b"] != "c" {
+		t.Errorf("settings = %+v", sl)
+	}
+	if bl := loadBackups(client, 1)().(backupsLoadedMsg); bl.err != nil || len(bl.backups) != 1 {
+		t.Errorf("backups = %+v", bl)
+	}
+	if saved := saveSetting(client, 1, "a", "b", "v")().(settingSavedMsg); saved.err != nil || saved.value != "v" {
+		t.Errorf("saved = %+v", saved)
 	}
 }

@@ -60,6 +60,32 @@ func (c *Client) Stop(ctx context.Context, serviceID int) error {
 	return c.do(ctx, "POST", "/services/"+strconv.Itoa(serviceID)+"/gameservers/stop", nil, nil)
 }
 
+type lifecycleRequest struct {
+	Message        string `json:"message,omitempty"`
+	RestartMessage string `json:"restart_message,omitempty"`
+	StopMessage    string `json:"stop_message,omitempty"`
+}
+
+// RestartWithMessage restarts the gameserver and shows message to players
+// (and in the restart log). An empty message behaves like Restart.
+func (c *Client) RestartWithMessage(ctx context.Context, serviceID int, message string) error {
+	if message == "" {
+		return c.Restart(ctx, serviceID)
+	}
+	body := lifecycleRequest{Message: message, RestartMessage: message}
+	return c.do(ctx, "POST", "/services/"+strconv.Itoa(serviceID)+"/gameservers/restart", body, nil)
+}
+
+// StopWithMessage stops the gameserver and shows message to players.
+// An empty message behaves like Stop.
+func (c *Client) StopWithMessage(ctx context.Context, serviceID int, message string) error {
+	if message == "" {
+		return c.Stop(ctx, serviceID)
+	}
+	body := lifecycleRequest{Message: message, StopMessage: message}
+	return c.do(ctx, "POST", "/services/"+strconv.Itoa(serviceID)+"/gameservers/stop", body, nil)
+}
+
 type listGamesResponse struct {
 	Data struct {
 		Games []Game `json:"games"`

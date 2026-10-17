@@ -1,7 +1,6 @@
 package cli
 
 import (
-	"context"
 	"fmt"
 	"time"
 
@@ -17,17 +16,31 @@ func newSwitchCmd() *cobra.Command {
 			"If the server has reached its installed-games limit, Nitrado's error is surfaced with guidance on freeing up space.",
 		Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			id, err := selectedServerID()
+			client, id, err := prepare(cmd)
 			if err != nil {
 				return err
 			}
-
-			client, err := requireClient()
-			if err != nil {
-				return err
-			}
-			ctx, cancel := context.WithTimeout(cmd.Context(), 30*time.Second)
+			ctx, cancel := timeoutCtx(cmd, 30*time.Second)
 			defer cancel()
+
+			// A game that's already installed is started; anything else is
+			// installed. If the lookup fails we fall back to install, which
+			// is what `switch` always did.
+			if games, err := client.ListGames(ctx, id); err == nil {
+				for _, g := range games {
+					if g.Slug == args[0] && g.Installed {
+						if g.Active {
+							fmt.Fprintf(cmd.OutOrStdout(), "Game %q is already the active game on server %d.\n", args[0], id)
+							return nil
+						}
+						if err := client.StartGame(ctx, id, args[0]); err != nil {
+							return apiErr(err)
+						}
+						fmt.Fprintf(cmd.OutOrStdout(), "Switching server %d to game %q.\n", id, args[0])
+						return nil
+					}
+				}
+			}
 			if err := client.SwitchGame(ctx, id, args[0]); err != nil {
 				return apiErr(err)
 			}
