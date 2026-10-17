@@ -12,7 +12,9 @@ jobs:
       - uses: actions/checkout@v7
       - uses: actions/setup-go@v7
         with:
-          go-version-file: go.mod
+          # staticcheck@latest requires a newer Go than go.mod pins, so lint
+          # with the latest stable toolchain (the module still builds as-is).
+          go-version: stable
 
       - name: gofmt
         run: |
